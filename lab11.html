@@ -1,0 +1,989 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>COSC346 Week 11 - RaiseMan</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   	<link rel="stylesheet" type="text/css" href="../phplabbook/labbookswift.css">
+	<link rel="stylesheet" type="text/css" href="../cosc346labstyle.css">
+	<script src="../jquery-1.11.1.min.js"></script>
+	<script src="../toc.min.js"></script>
+	<script src="../cosc346labscript.js"></script>
+</head>
+<body>
+
+	<!-- Banner -->
+	<div class="banner">
+		<a href="../../labs.php">COSC346&mdash;Object Oriented Programming and User Interfaces</a>
+	</div>
+		
+	<!-- Lab title -->		
+	<h1>Week 11—The RaiseMan Application</h1>
+	
+	<!-- Table of Contents -->
+	<div id="toc"></div>
+		
+		
+	<h2>Goals</h2>
+	<div class="block">
+		<ul class="toplist">
+			<li>Skimming over document-based application.</li>
+			<li>Explore table views.</li>
+			<li>Use an NSArrayController to manage a table view.</li>
+			<li>Implement undo/redo.</li>
+		</ul>
+	</div>
+
+
+	<h2>The RaiseMan Application</h2>
+
+	<p>
+	  In “Cocoa Programming for Mac OS X” (4th edition), Hillegass and Preble develop the “RaiseMan” application to illustrate a number of common tasks in OS X programming.  As the book progresses, the application incorporates open/save, undo/redo, user preferences, and printing.
+
+	  In this lab, we will include self-contained directions for developing the RaiseMan application, including undo/redo functionality. For more detail, we will provide references to chapters 8&ndash;9 in the 4th edition of the book.
+	</p>
+
+	<h3>A New Document-based Application</h3>
+
+	<p>
+	  The Timer Application used in lectures showed an example of an NSObjectController.
+
+	  In this lab we will explore a specific subclass of the NSObjectController, namely the NSArrayController. Like the NSObjectController, it is a supplied class that provides a controller in the MVC sense.
+	</p>
+
+	<p>
+	  As seen in the screen-shots below, the aim of the RaiseMan application is to track the raises that employees should get.
+	</p>
+
+	<p>
+	  Create a new Cocoa Application project in Xcode, name it RaiseMan, and enable the "Create Document-Based Application" option, setting the document extension to rsmn. You can disable "Use Core Data".
+
+	  Note that the Document.swift class has already been created for you, as a subclass of NSDocument.
+	</p>
+
+	<h3>The Person class</h3>
+	
+	<p>
+	  Using the file menu, create a new Person class, and make it a subclass of NSObject. It implements a model, in the MVC pattern. This is why in this case, it does not need to know about Cocoa, and only imports the Foundation framework. (Importing Cocoa would still work.)
+	</p>
+
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/01/Person.swift">Person.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">01:
+02:
+03:
+04:
+05:
+06:
+07:
+08:
+09:
+10:
+11:
+12:
+13:
+14:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Person.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 28/09/16.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Checked for Xcode 8.3 / Swift 3.x in 2017.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Foundation</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> Person: NSObject {</span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> personName:<span class="swiftclass">String</span> = <span class="swiftstring">"New Person"</span></span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> expectedRaise:<span class="swiftclass">Float</span> = <span class="swiftnumber">0</span>.<span class="swiftnumber">05</span> </span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+	
+
+	<p>
+	  In your Document class, declare an NSMutableArray to hold the list of employees for a document. Unlike the Objective-C code snippets from the 4th edition of the textbook, we do not need to implement init or setEmployees methods.
+	</p>
+
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/01/Document.swift">Document.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">01:
+02:
+03:
+04:
+05:
+06:
+07:
+08:
+09:
+10:
+11:
+12:
+13:
+14:
+15:
+16:
+17:
+18:
+19:
+20:
+21:
+22:
+23:
+24:
+25:
+26:
+27:
+28:
+29:
+30:
+31:
+32:
+33:
+34:
+35:
+36:
+37:
+38:
+39:
+40:
+41:
+42:
+43:
+44:
+45:
+46:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Document.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 24/09/17.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Cocoa</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> Document: NSDocument {</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> employees = NSMutableArray()</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">init</span>() {</span>
+<span class="swiftcode">        <span class="swiftkeyword">super</span>.<span class="swiftkeyword">init</span>()</span>
+<span class="swiftcode">        <span class="swiftcomment">// Add your subclass-specific initialization here.</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">class</span> <span class="swiftkeyword">func</span> autosavesInPlace() -&gt; <span class="swiftclass">Bool</span> {</span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> <span class="swiftkeyword">true</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> makeWindowControllers() {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Returns the Storyboard that contains your Document window.</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> storyboard = NSStoryboard(name: <span class="swiftstring">"Main"</span>, bundle: nil)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> windowController = storyboard.instantiateController(withIdentifier: <span class="swiftstring">"Document Window Controller"</span>) <span class="swiftkeyword">as</span>! NSWindowController</span>
+<span class="swiftcode">        <span class="swiftkeyword">self</span>.addWindowController(windowController)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> ourViewController = windowController.contentViewController</span>
+<span class="swiftcode">        ourViewController?.representedObject = <span class="swiftkeyword">self</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> data(ofType typeName: <span class="swiftclass">String</span>) throws -&gt; Data {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to write your document to data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning nil.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override fileWrapperOfType:error:, writeToURL:ofType:error:, or writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> read(from data: Data, ofType typeName: <span class="swiftclass">String</span>) throws {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to read your document from the given data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning false.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override readFromFileWrapper:ofType:error: or readFromURL:ofType:error: instead.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// If you override either of these, you should also override -isEntireFileLoaded to return false if the contents are lazily loaded.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"></span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+
+	<h3>RaiseMan document user interface and array controller</h3>
+	
+	<p>
+	  Now switch to the Interface Builder to edit Main.storyboard. Like other screenshots seen in this lab, you should drop a table view and two buttons onto your view, with appropriate labels on the buttons.
+
+	  In the Attributes Inspector for the table view, make sure that its Content Mode is set to Cell Based. (Note that your Document Outline may not by default have enough levels expanded for the table view to be seen.)
+	</p>
+
+	<p>
+	  Also drag out an NSArrayController ("Array Controller") into your View Controller scene in the Document Outline. Select it, switch the Attributes Inspector, and under Object Controller, ensure that the Class Name is set to "RaiseMan.Person" <b>(Note that this is different from the Objective C name!)</b>. You should also add keys "personName" and "expectedRaise" in the Keys listed.
+
+	  Now change to the Bindings Inspector, find the Content Array binding, and bind that to your View Controller. The Controller Key can be left blank, but enter <code>self.representedObject.employees</code> in the Model Key Path (Xcode may indicate that it is unable to resolve the entered keypath, but that is OK in this case). You have now bound the model side of the array controller. We now need to bind the view side of the array controller.
+	</p>
+
+	<p>
+	  Click the table view, and then double-click the left column. In the Bindings Inspector, set the Value binding to bind to the Array Controller, set the Controller Key  to arrangedObjects, and set the Model Key Path to personName.
+
+	  This is shown in the screenshot that follows.
+	</p>
+		
+	<img class="block" style="max-width:984px; max-height:580px;" src="images/1-select-name-column.png" title="Selecting the name column in our table view">
+
+	<p>
+	  Find the Number Formatter in the Library and drag it onto the second column's cell.
+
+	  This is shown in the screenshot that follows.
+
+	  Set a 10.4+ formatter to display a percentage, and enable Lenient.
+	</p>
+
+	<img class="block" style="max-width:984px; max-height:580px;" src="images/2-number-formatter.png" title="Configuring a number formatter">
+
+	<p>
+	  Select the second column, and in the Bindings Inspector, bind value to expectedRaise of the Array Controller's arrangedObjects, similarly to the first column.
+	</p>
+
+	<p>
+	  Control-drag from the Add Employee button over to target the array controller, and choose the "add:" action.
+	  Control-drag from the Remove button over to target the array controller also, and choose the "remove:" action.
+	  In the Remove button's Bindings Inspector, bind "Enabled" to the canRemove Controller Key of the Array Controller.
+	</p>
+
+	<p>
+	  In the Attributes Inspector for the Remove button, set a key equivalent, so that the "delete" key will perform the same action. (Recall that "key equivalents" were discussed in lectures.)
+	</p>
+
+	<p>
+	  Build and run your application. You should be able to create and delete Person objects, and edit the attributes of the Person objects using the table view. Further, you can create new documents (using the menu) that contain their own independent lists of employees.
+	</p>
+
+	<h3>Key-Value Coding and nil</h3>
+
+	<p>
+	  So far, we have not needed to write much code to develop our application. Key-value coding and bindings, along with the array controller, have greatly simplied our work.
+	</p>
+
+	<p>
+	  However, the automatic type conversions performed by key-value coding can led to some unexpected results. Try to enter a blank into the "Raise" column, and see what happens.
+	</p>
+	  
+	<p>
+	  What we need to do is to provide a setNilValueForKey method in Person, so that we can set a default expectedRaise value of 0.0. Modify your Person.swift class to the following code.
+	</p>
+
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/02/Person.swift">Person.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">01:
+02:
+03:
+04:
+05:
+06:
+07:
+08:
+09:
+10:
+11:
+12:
+13:
+14:
+15:
+16:
+17:
+18:
+19:
+20:
+21:
+22:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Person.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 28/09/16.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Checked for Xcode 8.3 / Swift 3.x in 2017.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Foundation</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> <span class="swiftdefined">Person</span>: NSObject {</span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> personName:<span class="swiftclass">String</span> = <span class="swiftstring">"New Person"</span></span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> expectedRaise:<span class="swiftclass">Float</span> = <span class="swiftnumber">0</span>.<span class="swiftnumber">05</span> </span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> setNilValueForKey(_ key: <span class="swiftclass">String</span>) {</span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> key == <span class="swiftstring">"expectedRaise"</span> {</span>
+<span class="swiftcode">            expectedRaise = <span class="swiftnumber">0</span>.<span class="swiftnumber">0</span> </span>
+<span class="swiftcode">        } <span class="swiftkeyword">else</span> {</span>
+<span class="swiftcode">            <span class="swiftkeyword">super</span>.setNilValueForKey(key)</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+
+	<h3>Sorting data</h3>
+
+	<p>
+	  The table view provides for the ability to sort rows based on the cells in a given column, by clicking on the header row. Right now, the ordering is case-sensitive for the Name column. Test that this is the case in your running application.
+	</p>
+
+	<p>
+	  In the Interface Builder select the Name column of the table view. In the Attributes Inspector, set the sort key to personName and the selector to be <code>caseInsensitiveCompare:</code>.
+
+	  This is shown in the screenshot that follows.
+	</p>
+
+	<img class="block" style="max-width:984px; max-height:580px;" src="images/3-caseInsensitiveCompare.png" title="Selecting case insensitive comparisons">
+
+	<p>
+	  Build and run your application, and check that the sorting of names is now case insensitive.
+
+	  (If you are seeking extra information from the 4th edition of H&amp;P, we have reached the start of the “For the More Curious: Sorting without NSArrayController” section of chapter 8, and will now skip to chapter 9.)
+	</p>
+
+	<h3>Adding undo / redo functionality</h3>
+
+	<p>Review the lecture notes describing undo / redo. If you want to see undo / redo code already working, examine the Temperature Control example code provided on the lecture notes webpage.</p>
+
+	<p>Note that <code>NSInvocation</code>s are not supported in Swift, although the API of the NSUndoManager (in some sense) can still be used in a very similar way. Keep this in mind when examining Objective-C examples.</p>
+
+	<p>
+	  We will now add undo / redo capabilities to the RaiseMan application.
+
+	  (If you are seeking extra information from the 4th edition of H&amp;P, we will reach the start of the “Begin Editing on Insert” of chapter 9.)
+	</p>
+
+	<p>
+	  Since we bound the contentArray of the array controller to the employees array within our Document object, the array controller is able to add and remove Person objects.
+
+	  These types of invocations will be what we add to the undo stack.
+	</p>
+
+	<p>
+	  In the Document.swift add the insertObject and removeObjectFromEmpoyeesAtIndex methods, as shown below.
+	</p>
+	
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/02/Document.swift">Document.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">01:
+02:
+03:
+04:
+05:
+06:
+07:
+08:
+09:
+10:
+11:
+12:
+13:
+14:
+15:
+16:
+17:
+18:
+19:
+20:
+21:
+22:
+23:
+24:
+25:
+26:
+27:
+28:
+29:
+30:
+31:
+32:
+33:
+34:
+35:
+36:
+37:
+38:
+39:
+40:
+41:
+42:
+43:
+44:
+45:
+46:
+47:
+48:
+49:
+50:
+51:
+52:
+53:
+54:
+55:
+56:
+57:
+58:
+59:
+60:
+61:
+62:
+63:
+64:
+65:
+66:
+67:
+68:
+69:
+70:
+71:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Document.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 24/09/17.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Cocoa</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> <span class="swiftdefined">Document</span>: NSDocument {</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> employees = NSMutableArray()</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">init</span>() {</span>
+<span class="swiftcode">        <span class="swiftkeyword">super</span>.<span class="swiftkeyword">init</span>()</span>
+<span class="swiftcode">        <span class="swiftcomment">// Add your subclass-specific initialization here.</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">class</span> <span class="swiftkeyword">func</span> autosavesInPlace() -&gt; <span class="swiftclass">Bool</span> {</span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> <span class="swiftkeyword">true</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> makeWindowControllers() {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Returns the Storyboard that contains your Document window.</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> storyboard = NSStoryboard(name: <span class="swiftstring">"Main"</span>, bundle: nil)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> windowController = storyboard.instantiateController(withIdentifier: <span class="swiftstring">"Document Window Controller"</span>) <span class="swiftkeyword">as</span>! NSWindowController</span>
+<span class="swiftcode">        <span class="swiftkeyword">self</span>.addWindowController(windowController)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> ourViewController = windowController.contentViewController</span>
+<span class="swiftcode">        ourViewController?.representedObject = <span class="swiftkeyword">self</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> data(ofType typeName: <span class="swiftclass">String</span>) throws -&gt; Data {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to write your document to data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning nil.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override fileWrapperOfType:error:, writeToURL:ofType:error:, or writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> read(from data: Data, ofType typeName: <span class="swiftclass">String</span>) throws {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to read your document from the given data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning false.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override readFromFileWrapper:ofType:error: or readFromURL:ofType:error: instead.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// If you override either of these, you should also override -isEntireFileLoaded to return false if the contents are lazily loaded.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> insertObject(_ p:<span class="swiftdefined">Person</span>, inEmployeesAtIndex index:<span class="swiftclass">Int</span>){</span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"adding %@ to %@"</span>,p,employees)</span>
+<span class="swiftcode">        <span class="swiftcomment">// add the inverse of the insertion action to the undo stack</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> undo = <span class="swiftkeyword">self</span>.undoManager {</span>
+<span class="swiftcode">            (undo.prepare(withInvocationTarget: <span class="swiftkeyword">self</span>) <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span>).removeObjectFromEmployeesAtIndex(index)</span>
+<span class="swiftcode">            <span class="swiftkeyword">if</span> !undo.isUndoing {</span>
+<span class="swiftcode">                undo.setActionName(<span class="swiftstring">"Add Person"</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">            <span class="swiftcomment">// Add the person to the NSMutableArray</span></span>
+<span class="swiftcode">            employees.insert(p, at: index)</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> removeObjectFromEmployeesAtIndex(_ index:<span class="swiftclass">Int</span>){</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> p = employees.object(at: index) <span class="swiftkeyword">as</span>! <span class="swiftdefined">Person</span></span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"removing %@ from %@"</span>,p,employees)</span>
+<span class="swiftcode">        <span class="swiftcomment">// add the inverse of the insertion action to the undo stack</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> undo = <span class="swiftkeyword">self</span>.undoManager {</span>
+<span class="swiftcode">            (undo.prepare(withInvocationTarget: <span class="swiftkeyword">self</span>) <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span>).insertObject(p, inEmployeesAtIndex: index)</span>
+<span class="swiftcode">            <span class="swiftkeyword">if</span> !undo.isUndoing {</span>
+<span class="swiftcode">                undo.setActionName(<span class="swiftstring">"Remove Person"</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">            <span class="swiftcomment">// Remove the person from the NSMutableArray</span></span>
+<span class="swiftcode">            employees.removeObject(at: index)</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+
+	<p>
+	  At this point, undo and redo should work for situations when rows are added and removed, however we would also like to be able to undo and redo edits to individual fields of a row.
+
+	  Before doing so, check that your code runs as expected.
+	</p>
+
+	<h3>Key-Value Observing and undo / redo for RaiseMan edits</h3>
+
+	<p>
+	  We will want our Document object to be notified about changes to the keys expectedRaise and personName for all of the Person objects it manages.
+
+	  In lectures we have seen the <code>addObserver</code> method of <code>NSObject</code>.
+	</p>
+
+	<p>
+	  Modify your Document.swift code to include the myContext static variable, and methods startObservingPerson and stopObservingPerson.
+
+	  Note that we also need to add calls to startObservingPerson and stopObservingPerson within the methods to insert and remove objects.
+	</p>
+
+	<p>
+	  At the top of the code, we add handlers for willSet and didSet that allow us to start and stop observing employees if the employees mutable array is reassigned.
+	</p>
+
+	<p>
+	  We need to add two further methods. The changeKeyPath method will ensure that KVO methods are called, thus supporting undo.
+
+	  The observeValueForKeyPath method will be called when an object is edited, either using the changeKeyPath method, or through the user interface. This method itself places changeKeyPath invocations on the undo stack.
+	</p>
+	
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/03/Document.swift">Document.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">001:
+002:
+003:
+004:
+005:
+006:
+007:
+008:
+009:
+010:
+011:
+012:
+013:
+014:
+015:
+016:
+017:
+018:
+019:
+020:
+021:
+022:
+023:
+024:
+025:
+026:
+027:
+028:
+029:
+030:
+031:
+032:
+033:
+034:
+035:
+036:
+037:
+038:
+039:
+040:
+041:
+042:
+043:
+044:
+045:
+046:
+047:
+048:
+049:
+050:
+051:
+052:
+053:
+054:
+055:
+056:
+057:
+058:
+059:
+060:
+061:
+062:
+063:
+064:
+065:
+066:
+067:
+068:
+069:
+070:
+071:
+072:
+073:
+074:
+075:
+076:
+077:
+078:
+079:
+080:
+081:
+082:
+083:
+084:
+085:
+086:
+087:
+088:
+089:
+090:
+091:
+092:
+093:
+094:
+095:
+096:
+097:
+098:
+099:
+100:
+101:
+102:
+103:
+104:
+105:
+106:
+107:
+108:
+109:
+110:
+111:
+112:
+113:
+114:
+115:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Document.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 24/09/17.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Cocoa</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> <span class="swiftdefined">Document</span>: NSDocument {</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">private</span> <span class="swiftkeyword">static</span> <span class="swiftkeyword">var</span> myContext = <span class="swiftnumber">0</span> </span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> employees = NSMutableArray() {</span>
+<span class="swiftcode">        willSet {</span>
+<span class="swiftcode">            <span class="swiftkeyword">for</span> person <span class="swiftkeyword">in</span> employees {</span>
+<span class="swiftcode">                stopObservingPerson(person <span class="swiftkeyword">as</span>! <span class="swiftdefined">Person</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">        didSet {</span>
+<span class="swiftcode">            <span class="swiftkeyword">for</span> person <span class="swiftkeyword">in</span> employees {</span>
+<span class="swiftcode">                startObservingPerson(person <span class="swiftkeyword">as</span>! <span class="swiftdefined">Person</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">init</span>() {</span>
+<span class="swiftcode">        <span class="swiftkeyword">super</span>.<span class="swiftkeyword">init</span>()</span>
+<span class="swiftcode">        <span class="swiftcomment">// Add your subclass-specific initialization here.</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">class</span> <span class="swiftkeyword">func</span> autosavesInPlace() -&gt; <span class="swiftclass">Bool</span> {</span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> <span class="swiftkeyword">true</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> makeWindowControllers() {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Returns the Storyboard that contains your Document window.</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> storyboard = NSStoryboard(name: <span class="swiftstring">"Main"</span>, bundle: nil)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> windowController = storyboard.instantiateController(withIdentifier: <span class="swiftstring">"Document Window Controller"</span>) <span class="swiftkeyword">as</span>! NSWindowController</span>
+<span class="swiftcode">        <span class="swiftkeyword">self</span>.addWindowController(windowController)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> ourViewController = windowController.contentViewController</span>
+<span class="swiftcode">        ourViewController?.representedObject = <span class="swiftkeyword">self</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> data(ofType typeName: <span class="swiftclass">String</span>) throws -&gt; Data {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to write your document to data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning nil.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override fileWrapperOfType:error:, writeToURL:ofType:error:, or writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> read(from data: Data, ofType typeName: <span class="swiftclass">String</span>) throws {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to read your document from the given data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning false.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override readFromFileWrapper:ofType:error: or readFromURL:ofType:error: instead.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// If you override either of these, you should also override -isEntireFileLoaded to return false if the contents are lazily loaded.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> insertObject(_ p:<span class="swiftdefined">Person</span>, inEmployeesAtIndex index:<span class="swiftclass">Int</span>){</span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"adding %@ to %@"</span>,p,employees)</span>
+<span class="swiftcode">        <span class="swiftcomment">// add the inverse of the insertion action to the undo stack</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> undo = <span class="swiftkeyword">self</span>.undoManager {</span>
+<span class="swiftcode">            (undo.prepare(withInvocationTarget: <span class="swiftkeyword">self</span>) <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span>).removeObjectFromEmployeesAtIndex(index)</span>
+<span class="swiftcode">            <span class="swiftkeyword">if</span> !undo.isUndoing {</span>
+<span class="swiftcode">                undo.setActionName(<span class="swiftstring">"Add Person"</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">            startObservingPerson(p)</span>
+<span class="swiftcode">            <span class="swiftcomment">// Add the person to the NSMutableArray</span></span>
+<span class="swiftcode">            employees.insert(p, at: index)</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> removeObjectFromEmployeesAtIndex(_ index:<span class="swiftclass">Int</span>){</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> p = employees.object(at: index) <span class="swiftkeyword">as</span>! <span class="swiftdefined">Person</span></span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"removing %@ from %@"</span>,p,employees)</span>
+<span class="swiftcode">        <span class="swiftcomment">// add the inverse of the insertion action to the undo stack</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> undo = <span class="swiftkeyword">self</span>.undoManager {</span>
+<span class="swiftcode">            (undo.prepare(withInvocationTarget: <span class="swiftkeyword">self</span>) <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span>).insertObject(p, inEmployeesAtIndex: index)</span>
+<span class="swiftcode">            <span class="swiftkeyword">if</span> !undo.isUndoing {</span>
+<span class="swiftcode">                undo.setActionName(<span class="swiftstring">"Remove Person"</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">            stopObservingPerson(p)</span>
+<span class="swiftcode">            <span class="swiftcomment">// Remove the person from the NSMutableArray</span></span>
+<span class="swiftcode">            employees.removeObject(at: index)</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> startObservingPerson(_ person:<span class="swiftdefined">Person</span>){</span>
+<span class="swiftcode">        person.addObserver(<span class="swiftkeyword">self</span>, forKeyPath: <span class="swiftstring">"personName"</span>, options: NSKeyValueObservingOptions.old, context: &<span class="swiftdefined">Document</span>.myContext)</span>
+<span class="swiftcode">        person.addObserver(<span class="swiftkeyword">self</span>, forKeyPath: <span class="swiftstring">"expectedRaise"</span>, options: NSKeyValueObservingOptions.old, context: &<span class="swiftdefined">Document</span>.myContext)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> stopObservingPerson(_ person:<span class="swiftdefined">Person</span>){</span>
+<span class="swiftcode">        person.removeObserver(<span class="swiftkeyword">self</span>, forKeyPath: <span class="swiftstring">"personName"</span>, context: &<span class="swiftdefined">Document</span>.myContext)</span>
+<span class="swiftcode">        person.removeObserver(<span class="swiftkeyword">self</span>, forKeyPath: <span class="swiftstring">"expectedRaise"</span>, context: &<span class="swiftdefined">Document</span>.myContext)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> changeKeyPath(keyPath:<span class="swiftclass">String</span>, ofObject obj:NSObject, toValue newValue:<span class="swiftclass">AnyObject</span>){</span>
+<span class="swiftcode">        obj.setValue(newValue, forKey: keyPath)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"> </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> observeValue(forKeyPath keyPath: <span class="swiftclass">String</span>?, of object: <span class="swiftclass">Any</span>?, change: [NSKeyValueChangeKey : <span class="swiftclass">Any</span>]?, context: UnsafeMutableRawPointer?) {</span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> context != &<span class="swiftdefined">Document</span>.myContext {</span>
+<span class="swiftcode">            <span class="swiftcomment">// message must have been intended for our superclass</span></span>
+<span class="swiftcode">            <span class="swiftkeyword">super</span>.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)</span>
+<span class="swiftcode">            <span class="swiftkeyword">return</span></span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> o = object <span class="swiftkeyword">as</span>? NSObject {</span>
+<span class="swiftcode">            <span class="swiftkeyword">if</span> <span class="swiftkeyword">let</span> undo = <span class="swiftkeyword">self</span>.undoManager {</span>
+<span class="swiftcode">                <span class="swiftkeyword">let</span> oldValue:<span class="swiftclass">AnyObject</span> = change![NSKeyValueChangeKey.oldKey]! <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span></span>
+<span class="swiftcode">                NSLog(<span class="swiftstring">"oldValue = </span></span><span class="codeswift">\<span class="swiftstring">(</span>oldValue<span class="swiftstring">)</span></span><span class="swiftcode"><span class="swiftstring">"</span>)</span>
+<span class="swiftcode">                (undo.prepare(withInvocationTarget: <span class="swiftkeyword">self</span>) <span class="swiftkeyword">as</span> <span class="swiftclass">AnyObject</span>).changeKeyPath(keyPath: keyPath!, ofObject: o, toValue: oldValue)</span>
+<span class="swiftcode">                undo.setActionName(<span class="swiftstring">"Edit"</span>)</span>
+<span class="swiftcode">            }</span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+
+	<p>
+	  Build and run your application. You should be able to undo and redo changes to fields, as well as the addition and removal of rows in the table view.
+
+	  Note that you may get errors from MacOS saying "The document could not be autosaved."&mdash;this is because MacOS is itself using your undo manager to attempt to autosave content, but we have not set up the functionality to save documents.
+	</p>
+
+	<h2>Exercises</h2>
+
+	<p>
+	  As time permits, do the following exercises. (They are derived from the exercises at the end of Chapter 8 in the 4th edition of H&amp;P.)
+	</p>
+
+	<h3>Exercise 1</h3>
+
+	<p>“Make the application sort people based on the number of characters in their names. You can complete this challenge using only Interface Builder—the trick is to use a key path. (Hint: Strings have a length method.)”</p>
+
+	<h3>Exercise 2</h3>
+
+	<p>
+	  In early editions of H&amp;P, the RaiseMan application needed to be implemented without NSArrayControllers or bindings. This is because those features were only added to the operating system in Mac OS 10.3.</p>
+
+	<p>
+	  “The challenge, then, is to rewrite the RaiseMan application without using NSArrayController or the bindings mechanism.  Bindings often seem rather magical, and it is good to know how to do things without resorting to magic.
+	  Be sure to start afresh with a new project.
+	</p>
+
+	<p>
+	  The Person class will stay exactly the same.  Within the Interface Builder, you should set the identifier of each column to be the name of the variable that you would like displayed (use the Identity Inspector in Interface Builder).  Then, the Document class will be the dataSource of the table view and the target of the Create New Employee and Delete buttons.  Since this lab now uses storyboards, you will not be able to access IBOutlets or IBActions directly in the Document class. The Document class will have an array of Person objects that it displays.  To get you started, here [are the more interesting parts of Document.swift]:
+	</p>
+
+	<div class="codeblock">
+<div class="codeblocktitle"><a href="code/04/Document.swift">Document.swift</a></div>
+<pre class="linenumbers unselectable" style="float: left;">01:
+02:
+03:
+04:
+05:
+06:
+07:
+08:
+09:
+10:
+11:
+12:
+13:
+14:
+15:
+16:
+17:
+18:
+19:
+20:
+21:
+22:
+23:
+24:
+25:
+26:
+27:
+28:
+29:
+30:
+31:
+32:
+33:
+34:
+35:
+36:
+37:
+38:
+39:
+40:
+41:
+42:
+43:
+44:
+45:
+46:
+47:
+48:
+49:
+50:
+51:
+52:
+53:
+54:
+55:
+56:
+57:
+58:
+59:
+60:
+61:
+62:
+63:
+64:
+65:
+66:
+67:
+68:
+69:
+70:
+71:
+72:
+73:
+74:
+75:
+76:
+77:
+78:
+79:
+80:
+81:
+</pre><pre class="code">
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Document.swift</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  RaiseMan</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"><span class="swiftcomment">//  Created by David Eyers on 24/09/17.</span></span>
+<span class="swiftcode"><span class="swiftcomment">//</span></span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">import</span> Cocoa</span>
+<span class="swiftcode"></span>
+<span class="swiftcode"><span class="swiftkeyword">class</span> <span class="swiftdefined">Document</span>: NSDocument {</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">private</span> <span class="swiftkeyword">static</span> <span class="swiftkeyword">var</span> myContext = <span class="swiftnumber">0</span> </span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">var</span> employees = NSMutableArray()</span>
+<span class="swiftcode">    <span class="swiftkeyword">@IBOutlet</span> <span class="swiftkeyword">weak</span> <span class="swiftkeyword">var</span> tableView: NSTableView!</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">init</span>() {</span>
+<span class="swiftcode">        <span class="swiftkeyword">super</span>.<span class="swiftkeyword">init</span>()</span>
+<span class="swiftcode">        <span class="swiftcomment">// Add your subclass-specific initialization here.</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">class</span> <span class="swiftkeyword">func</span> autosavesInPlace() -&gt; <span class="swiftclass">Bool</span> {</span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> <span class="swiftkeyword">true</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> makeWindowControllers() {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Returns the Storyboard that contains your Document window.</span></span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> storyboard = NSStoryboard(name: <span class="swiftstring">"Main"</span>, bundle: nil)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> windowController = storyboard.instantiateController(withIdentifier: <span class="swiftstring">"Document Window Controller"</span>) <span class="swiftkeyword">as</span>! NSWindowController</span>
+<span class="swiftcode">        <span class="swiftkeyword">self</span>.addWindowController(windowController)</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> ourViewController = windowController.contentViewController</span>
+<span class="swiftcode">        ourViewController?.representedObject = <span class="swiftkeyword">self</span></span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> data(ofType typeName: <span class="swiftclass">String</span>) throws -&gt; Data {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to write your document to data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning nil.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override fileWrapperOfType:error:, writeToURL:ofType:error:, or writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">    <span class="swiftkeyword">override</span> <span class="swiftkeyword">func</span> read(from data: Data, ofType typeName: <span class="swiftclass">String</span>) throws {</span>
+<span class="swiftcode">        <span class="swiftcomment">// Insert code here to read your document from the given data of the specified type. If outError != nil, ensure that you create and set an appropriate error when returning false.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// You can also choose to override readFromFileWrapper:ofType:error: or readFromURL:ofType:error: instead.</span></span>
+<span class="swiftcode">        <span class="swiftcomment">// If you override either of these, you should also override -isEntireFileLoaded to return false if the contents are lazily loaded.</span></span>
+<span class="swiftcode">        throw NSError(domain: NSOSStatusErrorDomain, code: unimpErr, userInfo: nil)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode"></span>
+<span class="swiftcode">    <span class="swiftkeyword">@IBAction</span> <span class="swiftkeyword">func</span> createEmployee(_ sender: <span class="swiftclass">AnyObject</span>) {</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> newEmployee = <span class="swiftdefined">Person</span>()</span>
+<span class="swiftcode">        employees.add(anObject: newEmployee)</span>
+<span class="swiftcode">        tableView.reloadData()</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">@IBAction</span> <span class="swiftkeyword">func</span> deleteSelectedEmployees(_ sender: <span class="swiftclass">AnyObject</span>) {</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> rows:NSIndexSet = tableView.selectedRowIndexes</span>
+<span class="swiftcode">        <span class="swiftkeyword">if</span> rows.count == <span class="swiftnumber">0</span> {</span>
+<span class="swiftcode">            NSBeep()</span>
+<span class="swiftcode">            <span class="swiftkeyword">return</span></span>
+<span class="swiftcode">        }</span>
+<span class="swiftcode">        employees.removeObjects(at: rows)</span>
+<span class="swiftcode">        tableView.reloadData()</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> numberOfRowsInTableView(aTableView:NSTableView)-&gt;NSInteger {</span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"reported count </span></span><span class="codeswift">\<span class="swiftstring">(</span>employees.count<span class="swiftstring">)</span></span><span class="swiftcode"><span class="swiftstring">"</span>)</span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> employees.count</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> tableView(_ tableView: NSTableView, objectValueForTableColumn aTableColumn:NSTableColumn?, row rowIndex:NSInteger)-&gt;<span class="swiftclass">AnyObject</span>? {</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> identifier = aTableColumn!.identifier</span>
+<span class="swiftcode">        </span>
+<span class="swiftcode">        NSLog(<span class="swiftstring">"identifier=</span></span><span class="codeswift">\<span class="swiftstring">(</span>identifier<span class="swiftstring">)</span></span><span class="swiftcode"><span class="swiftstring">"</span>)</span>
+<span class="swiftcode">        </span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> person:<span class="swiftclass">AnyObject</span> = employees.object(at: rowIndex)</span>
+<span class="swiftcode">        </span>
+<span class="swiftcode">        <span class="swiftkeyword">return</span> person.value(forKey: identifier)!</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    <span class="swiftkeyword">func</span> tableView(_ tableView: NSTableView, setObjectValue anObject:<span class="swiftclass">AnyObject</span>?, forTableColumn aTableColumn:NSTableColumn?, row rowIndex:NSInteger){</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> identifier = aTableColumn!.identifier</span>
+<span class="swiftcode">        <span class="swiftkeyword">let</span> person:<span class="swiftclass">AnyObject</span> = employees.object(at: rowIndex)</span>
+<span class="swiftcode">        person.setValue(anObject, forKey: identifier)</span>
+<span class="swiftcode">    }</span>
+<span class="swiftcode">    </span>
+<span class="swiftcode">}</span>
+</pre>
+</div>
+	
+	<p>
+	  Once you have it working, be sure to add sorting!
+	</p>
+	
+	</div>
+
+	<div class="banner">
+		<a href="../../labs.php">COSC346 - Object Oriented Programming and User Interfaces</a>
+	</div>
+	</body>
+</html>
+
+<!--  LocalWords:  Preble codekeyword mdash
+ -->
